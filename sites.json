@@ -1,0 +1,14 @@
+[
+  {
+    "id": "sauto",
+    "name": "sauto.cz",
+    "url": "https://www.sauto.cz/inzerce/osobni",
+    "enabled": true
+  },
+  {
+    "id": "bazos",
+    "name": "auto.bazos.cz",
+    "url": "https://auto.bazos.cz/",
+    "enabled": true
+  }
+]

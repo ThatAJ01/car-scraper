@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Car Finder</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --text:#1a1d21; --muted:#6b7280; --accent:#2563eb; --border:#e5e7eb; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111418; --card:#1b1f25; --text:#e8eaed; --muted:#9aa3af; --accent:#5b8def; --border:#2c323b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.4 system-ui,sans-serif; background:var(--bg); color:var(--text); }
+  main { max-width:1100px; margin:0 auto; padding:16px; display:grid; gap:16px; }
+  section { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px; }
+  h1 { margin:0; font-size:22px; } h2 { margin:0 0 12px; font-size:16px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+  label { display:grid; gap:4px; font-size:12px; color:var(--muted); }
+  input, select, button { font:inherit; padding:8px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--text); }
+  button { cursor:pointer; background:var(--accent); color:#fff; border:0; }
+  button.ghost { background:transparent; color:var(--muted); border:1px solid var(--border); }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .site { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-top:1px solid var(--border); gap:8px; }
+  .site small { color:var(--muted); word-break:break-all; }
+  .cars { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:12px; }
+  .car { border:1px solid var(--border); border-radius:8px; overflow:hidden; display:flex; flex-direction:column; }
+  .car img { width:100%; height:150px; object-fit:cover; background:var(--border); }
+  .car .b { padding:10px; display:grid; gap:4px; }
+  .car .price { font-weight:700; font-size:18px; }
+  .tags { display:flex; gap:4px; flex-wrap:wrap; }
+  .tags span { background:var(--bg); border:1px solid var(--border); border-radius:99px; padding:1px 8px; font-size:12px; color:var(--muted); }
+  a { color:var(--accent); text-decoration:none; }
+  .err { color:#dc2626; font-size:13px; } .muted { color:var(--muted); }
+  details summary { cursor:pointer; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🚗 Car Finder</h1>
+
+  <section>
+    <h2>Filters</h2>
+    <div class="grid">
+      <label>Brand <input id="brand" list="brands" placeholder="any"></label>
+      <label>Model <input id="model" list="models" placeholder="e.g. Octavia"></label>
+      <label>Max km <input id="km_max" type="number" placeholder="e.g. 150000"></label>
+      <label>Year from <input id="year_min" type="number" placeholder="2015"></label>
+      <label>Year to <input id="year_max" type="number" placeholder="2024"></label>
+      <label>Max price (Kč) <input id="price_max" type="number" placeholder="any"></label>
+      <label>Type <select id="body"><option value="">any</option><option>sedan</option><option>hatchback</option><option>wagon</option><option>suv</option><option>coupe</option><option>convertible</option><option>van</option></select></label>
+      <label>Fuel <select id="fuel"><option value="">any</option><option>petrol</option><option>diesel</option><option>hybrid</option><option>electric</option></select></label>
+      <label>Gearbox <select id="gearbox"><option value="">any</option><option>manual</option><option>automatic</option></select></label>
+      <label style="grid-auto-flow:column;align-items:center;justify-content:start;gap:8px;align-self:end;padding-bottom:8px;color:var(--text);font-size:14px">
+        <input type="checkbox" id="hide_parts" checked> Hide parts &amp; accessories (under 50 000 Kč)</label>
+      <label style="grid-auto-flow:column;align-items:center;justify-content:start;gap:8px;align-self:end;padding-bottom:8px;color:var(--text);font-size:14px">
+        <input type="checkbox" id="full_ad" checked> Read the whole ad (slower, more accurate)</label>
+    </div>
+    <datalist id="brands"></datalist><datalist id="models"></datalist>
+    <div class="row" style="margin-top:12px">
+      <button id="go">Search enabled sites</button>
+      <span id="status" class="muted"></span>
+    </div>
+  </section>
+
+  <section>
+    <div class="row" style="justify-content:space-between;margin-bottom:12px">
+      <h2 style="margin:0">Results <span id="count" class="muted"></span></h2>
+      <label style="grid-auto-flow:column;align-items:center;gap:8px">Sort by
+        <select id="sort">
+          <option value="price">Price: low to high</option>
+          <option value="-price">Price: high to low</option>
+          <option value="km">Kilometers: low to high</option>
+          <option value="-km">Kilometers: high to low</option>
+          <option value="-year">Year: newest first</option>
+          <option value="year">Year: oldest first</option>
+        </select></label>
+    </div>
+    <div id="errors"></div>
+    <div id="cars" class="cars"></div>
+    <div id="pager" class="row" style="justify-content:center;margin-top:12px">
+      <button id="prev" class="ghost">← Previous</button>
+      <span id="pageinfo" class="muted"></span>
+      <button id="next" class="ghost">Next →</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Sites</h2>
+    <div id="sites"></div>
+    <div class="row" style="margin-top:12px">
+      <input id="s_url" placeholder="Paste a search-results URL, e.g. https://auto.bazos.cz/..." style="flex:1;min-width:240px">
+      <button id="addsite">Add site</button> <span id="addmsg" class="err"></span>
+    </div>
+    <p class="muted" style="margin:8px 0 0">Tip: set the site's own filters first, then paste that page's URL.</p>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const FILTERS = ["brand","model","km_max","year_min","year_max","price_max","body","fuel","gearbox"];
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const api = (url, method="GET", body) => fetch(url, {method, headers:{"Content-Type":"application/json"}, body: body && JSON.stringify(body)}).then(r => r.json());
+
+["Alfa Romeo","Audi","BMW","Citroen","Dacia","Fiat","Ford","Honda","Hyundai","Jeep","Kia","Lexus","Mazda","Mercedes","Mini","Nissan","Opel","Peugeot","Porsche","Renault","Seat","Skoda","Subaru","Suzuki","Tesla","Toyota","Volkswagen","Volvo"]
+  .forEach(b => $("brands").insertAdjacentHTML("beforeend", `<option value="${b}">`));
+
+// model suggestions per brand; the Model box also accepts any text
+const MODELS = {
+  skoda: ["Fabia","Octavia","Superb","Scala","Kamiq","Karoq","Kodiaq","Rapid","Roomster","Yeti","Citigo","Enyaq"],
+  volkswagen: ["Golf","Passat","Polo","Tiguan","Touran","Touareg","Arteon","T-Roc","Up","Caddy","Jetta","Sharan"],
+  audi: ["A1","A3","A4","A5","A6","Q2","Q3","Q5","Q7","TT"],
+  bmw: ["116","118","320","330","520","X1","X3","X5","Seria 1","Seria 3","Seria 5"],
+  mercedes: ["A","B","C","E","CLA","GLA","GLC","Vito","Sprinter"],
+  toyota: ["Yaris","Corolla","Auris","Aygo","RAV4","C-HR","Avensis","Camry"],
+  ford: ["Fiesta","Focus","Mondeo","Kuga","Puma","Mustang","Transit","S-Max"],
+  hyundai: ["i10","i20","i30","Tucson","Kona","Santa Fe","ix35"],
+  kia: ["Ceed","Rio","Picanto","Sportage","Sorento","Stonic","Niro"],
+  renault: ["Clio","Megane","Captur","Kadjar","Scenic","Twingo","Talisman"],
+  peugeot: ["107","207","208","308","2008","3008","5008","Partner"],
+  opel: ["Astra","Corsa","Insignia","Mokka","Zafira","Vectra","Meriva"],
+  seat: ["Ibiza","Leon","Ateca","Arona","Alhambra","Toledo"],
+  citroen: ["C1","C3","C4","C5","Berlingo","Picasso"],
+  dacia: ["Duster","Sandero","Logan","Dokker","Jogger"],
+  mazda: ["2","3","6","CX-3","CX-5","MX-5"],
+  honda: ["Civic","Jazz","CR-V","Accord","HR-V"],
+  fiat: ["500","Panda","Punto","Tipo","Doblo"],
+  nissan: ["Micra","Qashqai","Juke","Leaf","X-Trail","Note"],
+  volvo: ["V40","V60","V70","XC40","XC60","XC90","S60","S80"],
+  tesla: ["Model 3","Model S","Model X","Model Y"],
+  suzuki: ["Swift","Vitara","Ignis","SX4","Jimny"],
+};
+const norm = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+$("brand").oninput = () => {
+  $("models").innerHTML = (MODELS[norm($("brand").value)] || []).map(m => `<option value="${m}">`).join("");
+};
+
+async function loadSites() {
+  const sites = await api("/api/sites");
+  $("sites").innerHTML = sites.map(s => `
+    <div class="site">
+      <label class="row" style="color:inherit;font-size:inherit"><input type="checkbox" ${s.enabled ? "checked" : ""} onchange="toggle('${s.id}', this.checked)">
+        <span><b>${esc(s.name)}</b><br><small>${esc(s.url)}</small></span></label>
+      <button class="ghost" onclick="removeSite('${s.id}')">Remove</button>
+    </div>`).join("") || '<p class="muted">No sites yet.</p>';
+}
+const toggle = (id, enabled) => api("/api/sites/" + id, "PATCH", {enabled});
+const removeSite = async id => { await api("/api/sites/" + id, "DELETE"); loadSites(); };
+
+$("addsite").onclick = async () => {
+  const r = await api("/api/sites", "POST", {url: $("s_url").value});
+  $("addmsg").textContent = r.error || "";
+  if (!r.error) { $("s_url").value = ""; loadSites(); }
+};
+
+// Results stream in as sites are scanned. Everything found is kept; 20 cards are drawn per page.
+let found = [], page = 0, ctl = null, scraped = {}, renderTimer = null;
+const PAGE = 20;
+
+function render() {
+  renderTimer = null;
+  const key = $("sort").value.replace("-", ""), dir = $("sort").value.startsWith("-") ? -1 : 1;
+  found.sort((a, b) => (a[key] == null) - (b[key] == null) || dir * (a[key] - b[key]));  // cars missing the value go last
+  $("count").textContent = `(${found.length})`;
+  const pages = Math.max(1, Math.ceil(found.length / PAGE));
+  page = Math.min(page, pages - 1);
+  $("pager").style.display = pages > 1 ? "" : "none";
+  $("pageinfo").textContent = `Page ${page + 1} of ${pages}`;
+  $("prev").disabled = page === 0; $("next").disabled = page >= pages - 1;
+  $("cars").innerHTML = found.slice(page * PAGE, (page + 1) * PAGE).map(card).join("") || '<p class="muted">Nothing matched (yet).</p>';
+}
+const scheduleRender = () => renderTimer ??= setTimeout(render, 700);
+const goPage = d => { page += d; render(); $("count").scrollIntoView({behavior: "smooth", block: "start"}); };
+$("prev").onclick = () => goPage(-1);
+$("next").onclick = () => goPage(1);
+$("sort").onchange = () => { page = 0; render(); };
+
+$("go").onclick = async () => {
+  if (ctl) { ctl.abort(); return; }  // button doubles as Stop
+  const f = Object.fromEntries(FILTERS.map(k => [k, $(k).value.trim()]));
+  f.hide_parts = $("hide_parts").checked; f.full_ad = $("full_ad").checked;
+  found = []; scraped = {}; page = 0; $("errors").innerHTML = ""; render();
+  ctl = new AbortController();
+  $("go").textContent = "Stop";
+  const t0 = Date.now();
+  const tick = setInterval(() => $("status").textContent =
+    `Searching ${Math.round((Date.now() - t0) / 1000)}s · ` + Object.entries(scraped).map(([n, c]) => `${n}: ${c} scanned`).join(" · "), 500);
+  try {
+    const res = await fetch("/api/search", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(f), signal:ctl.signal});
+    if (!res.ok) throw new Error("server error " + res.status + " (see the black console window running the app)");
+    const reader = res.body.getReader(), dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream:true});
+      const lines = buf.split("\n"); buf = lines.pop();
+      for (const line of lines.filter(Boolean)) {
+        const m = JSON.parse(line);
+        if (m.error) $("errors").insertAdjacentHTML("beforeend", `<div class="err">${esc(m.site)}: ${esc(m.error)}</div>`);
+        if (m.scraped != null) scraped[m.site] = m.scraped;
+        if (m.cars?.length) { found.push(...m.cars); scheduleRender(); }
+      }
+    }
+    $("status").textContent = "Done · " + Object.entries(scraped).map(([n, c]) => `${n}: ${c} scanned`).join(" · ");
+  } catch (e) {
+    $("status").textContent = (e.name === "AbortError" ? "Stopped · " : "") + Object.entries(scraped).map(([n, c]) => `${n}: ${c} scanned`).join(" · ");
+    if (e.name !== "AbortError") $("errors").insertAdjacentHTML("beforeend", `<div class="err">Search failed: ${esc(e.message)}</div>`);
+  } finally { clearInterval(tick); ctl = null; $("go").textContent = "Search enabled sites"; render(); }
+};
+
+const card = c => `
+    <div class="car">
+      ${c.image ? `<img src="${esc(c.image)}" loading="lazy" alt="">` : ""}
+      <div class="b">
+        <div class="price">${c.price != null ? c.price.toLocaleString("cs-CZ") + " Kč" : esc("price ?")}</div>
+        <a href="${esc(c.link)}" target="_blank" rel="noopener">${esc(c.title)}</a>
+        <div class="tags">${[c.year, c.km != null && c.km.toLocaleString("cs-CZ") + " km", c.fuel, c.gearbox, c.body, c.brand]
+          .filter(Boolean).map(t => `<span>${esc(t)}</span>`).join("")}</div>
+        <small class="muted">${esc(c.site)}</small>
+      </div>
+    </div>`;
+
+loadSites();
+</script>
+</body>
+</html>
